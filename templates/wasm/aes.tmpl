@@ -1,0 +1,224 @@
+<!----
+title: AES
+remark: AES Encryption / Decryption
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+  <form id="form">
+    <div class="inline-group">
+      <select id="mode" name="mode" required>
+        <option disabled value="">mode</option>
+      </select>
+      <select id="padding" name="padding" required>
+        <option disabled value="">padding</option>
+      </select>
+    </div>
+    <fieldset>
+      <legend><a>key</a></legend>
+      <div class="inline-group grouped">
+        <select id="keyenc" name="keyenc" required>
+          <option disabled value="">encoding</option>
+        </select>
+        <input id="key" name="key" type="text" required placeholder="16Bytes" />
+      </div>
+      <div class="inline-group" style="margin-block-start: 0.5rem">
+        <select id="keysize">
+          <option disabled value="">key size</option>
+        </select>
+        <input id="genkeyBtn" type="button" value="generate" />
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>IV</legend>
+      <div class="inline-group grouped">
+        <select id="ivenc" name="ivenc" required>
+          <option disabled value="">encoding</option>
+        </select>
+        <input id="iv" name="iv" type="text" required />
+      </div>
+      <div class="inline-group" style="margin-block-start: 0.5rem">
+        <div></div>
+        <input id="genIVBtn" type="button" value="generate" />
+      </div>
+    </fieldset>
+    <textarea id="input" name="input" rows="10" required></textarea>
+    <fieldset>
+      <legend>input / output</legend>
+      <div class="inline-group">
+        <select id="enc" name="encoding" required>
+          <option disabled value="">encoding</option>
+        </select>
+        <select id="charset" name="charset" required>
+          <option disabled value="">charset</option>
+        </select>
+      </div>
+    </fieldset>
+    <div class="inline-group">
+      <input type="submit" value="encrypt" data-func="aesEncrypt" name="action" />
+      <input type="submit" value="decrypt" data-func="aesDecrypt" name="action" />
+    </div>
+  </form>
+</article>
+
+<section class="output">
+  <label for="output">
+    <h2>output</h2>
+  </label>
+  <textarea id="output" rows="10" readonly></textarea>
+</section>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, initCharset, populateSelect, Encoding } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const modeElement = formElement.querySelector('#mode');
+  const paddingElement = formElement.querySelector('#padding');
+
+  const keyEncElement = formElement.querySelector('#keyenc');
+  const keyElement = formElement.querySelector('#key');
+  const keySizeElement = formElement.querySelector('#keysize');
+  const genKeyBtnElement = formElement.querySelector('#genkeyBtn');
+
+  const ivEncElement = formElement.querySelector('#ivenc');
+  const ivElement = formElement.querySelector('#iv');
+  const genIVBtnElement = formElement.querySelector('#genIVBtn');
+
+  const charsetElement = formElement.querySelector('#charset');
+  const encElement = formElement.querySelector('#enc');
+
+  const outputElement = document.querySelector('#output');
+  const defaultEnc = 'hex';
+
+  const initVariant = async () => {
+    const re = window.aesVariants();
+    console.log('window.aesVariants(), result: ', re);
+    const { data } = JSON.parse(re);
+
+    const raw = `${data.modes
+      .map((opt) => {
+        const selected = opt.name === data.defmode ? 'selected' : '';
+        return `<option value="${opt.name}" ${opt.pad ? 'data-pad="true"' : ''} ${opt.iv ? 'data-iv="true"' : ''} ${selected}>${opt.name}</option>`;
+      })
+      .join('')}`;
+    modeElement.insertAdjacentHTML('beforeend', raw);
+    populateSelect(keySizeElement, [16, 24, 32], 16);
+    populateSelect(paddingElement, data.paddings, data.defmode);
+  };
+
+  const initEncoding = async () => {
+    const data = Object.keys(Encoding.variants);
+    populateSelect([keyEncElement, ivEncElement, encElement], data, defaultEnc);
+  };
+
+  const generateRandomValue = (length, enc) => {
+    const bs = crypto.getRandomValues(new Uint8Array(16));
+    const value = enc === 'base64' ? btoa(String.fromCharCode(...bs)) : Array.from(bs, (b) => b.toString(16).padStart(2, '0')).join('');
+    return value;
+  };
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+    await Promise.all([initCharset(charsetElement), initVariant(), initEncoding()]);
+    console.log('All initialization tasks completed successfully.');
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  modeElement.addEventListener('change', (event) => {
+    const target = event.target;
+    const option = target.options[target.selectedIndex];
+    const toggleFunc = (element, condition) => {
+      element.disabled = !condition;
+    };
+
+    toggleFunc(ivEncElement, option.dataset.iv);
+    toggleFunc(ivElement, option.dataset.iv);
+    toggleFunc(paddingElement, option.dataset.pad);
+  });
+  modeElement.dispatchEvent(new Event('change'));
+
+  ivElement.addEventListener('input', () => Encoding.validate(ivEncElement, ivElement));
+  ivEncElement.addEventListener('change', () => Encoding.validate(ivEncElement, ivElement));
+  keyElement.addEventListener('input', () => Encoding.validate(keyEncElement, keyElement));
+  keyEncElement.addEventListener('change', () => Encoding.validate(keyEncElement, keyElement));
+
+  genKeyBtnElement.addEventListener('click', () => {
+    event.preventDefault();
+    const enc = keyEncElement.value;
+    const size = +keySizeElement.value;
+    const value = generateRandomValue(size, enc);
+    console.log(`enc: ${enc}, size: ${size}, random key: ${value}`);
+
+    keyElement.value = value;
+    Encoding.validate(keyEncElement, keyElement);
+  });
+  genKeyBtnElement.dispatchEvent(new Event('click'));
+
+  genIVBtnElement.addEventListener('click', () => {
+    event.preventDefault();
+    const enc = ivEncElement.value;
+    const value = generateRandomValue(16, enc);
+    console.log(`enc: ${enc}, random iv: ${value}`);
+
+    ivElement.value = value;
+    Encoding.validate(ivEncElement, ivElement);
+  });
+  genIVBtnElement.dispatchEvent(new Event('click'));
+
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const func = event.submitter.dataset.func;
+    const fdata = Object.fromEntries(new FormData(event.target));
+    console.log('func', func, 'fdata', fdata);
+    const { mode, key, keyenc, iv, ivenc, padding, input, charset, encoding } = fdata;
+
+    const aesObj = {
+      mode: mode,
+      input: input,
+      charset: charset,
+      key: key,
+      key_enc: keyenc,
+      iv: iv,
+      iv_enc: ivenc,
+      pad: padding,
+    };
+    const aesJSON = JSON.stringify(aesObj);
+    console.log('aesJSON', aesJSON);
+    switch (func) {
+      case 'aesEncrypt':
+        {
+          const re = window.aesEncrypt(aesJSON);
+          console.log('window.aesEncrypt(), result: ', re);
+          const { data, err } = JSON.parse(re);
+          if (err) {
+            alert(err);
+            return;
+          }
+          if (data[encoding] === undefined) throw new Error('Invalid encoding');
+          outputElement.value = data[encoding];
+        }
+        break;
+      case 'aesDecrypt':
+        {
+          const re = window.aesDecrypt(aesJSON, encoding);
+          console.log('window.aesDecrypt(), result: ', re);
+          const { data, err } = JSON.parse(re);
+          if (err) {
+            alert(err);
+            return;
+          }
+          outputElement.value = data;
+        }
+        break;
+      default:
+        throw new Error('Invalid func');
+    }
+  });
+</script>
+{{ end }}

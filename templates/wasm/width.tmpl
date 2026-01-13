@@ -1,0 +1,65 @@
+<!----
+title: Character Width
+remark: Full-Width <==> Half-Width
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+
+  <form id="form">
+    <textarea id="input" name="input" rows="10" required></textarea>
+
+    <div class="inline-group">
+      <input type="submit" value="full" data-func="full" name="action" />
+      <input type="submit" value="half" data-func="half" name="action" />
+    </div>
+  </form>
+</article>
+<section class="output">
+  <label for="output">
+    <h2>output</h2>
+  </label>
+  <textarea id="output" rows="10" readonly></textarea>
+</section>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, populateSelect } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const outputElement = document.querySelector('#output');
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const func = event.submitter.dataset.func;
+    const fdata = Object.fromEntries(new FormData(event.target));
+    console.log('func', func, 'fdata', fdata);
+    const { input } = fdata;
+
+    let re;
+    if (typeof window[func] === 'function') re = window[func](input);
+    else {
+      console.error('Invalid func:', func);
+      throw new Error('Invalid func');
+    }
+
+    console.log('result:', re);
+    const { data, err } = JSON.parse(re);
+    if (err) {
+      alert(err);
+      return;
+    }
+    outputElement.value = data;
+  });
+</script>
+{{ end }}

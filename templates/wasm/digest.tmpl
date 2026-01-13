@@ -1,0 +1,99 @@
+<!----
+title: Digest
+remark: MD5 SHA-1 SHA-224 SHA-256 SHA-384 SHA-512 SHA-512/224 SHA-512/256 SHA3-224 SHA3-256 SHA3-384 SHA3-512 BLAKE2s-256 BLAKE2b-256 BLAKE2b-384 BLAKE2b-512
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+  <form id="form">
+    <textarea id="input" name="input" rows="10" required></textarea>
+    <div class="inline-group">
+      <select id="charset" name="charset" required>
+        <option disabled value="">charset</option>
+      </select>
+      <input type="submit" value="submit" />
+    </div>
+  </form>
+</article>
+
+<section class="output">
+  <fieldset>
+    <legend>
+      <h2>hex</h2>
+    </legend>
+    <div id="hex-output" class="group-auto"></div>
+  </fieldset>
+  <fieldset>
+    <legend>
+      <h2>base64</h2>
+    </legend>
+    <div id="base64-output" class="group-auto"></div>
+  </fieldset>
+</section>
+{{ end }}
+
+{{ define "styles" }}
+<style>
+  label {
+    inline-size: auto;
+    font-size: small;
+
+    @media (max-width: 768px) {
+      margin-block-end: -0.5rem;
+    }
+  }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, initCharset, populateSelect } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const charsetElement = formElement.querySelector('#charset');
+  const hexOutputElement = document.querySelector('#hex-output');
+  const base64OutputElement = document.querySelector('#base64-output');
+
+  const initVariant = async () => {
+    const re = window.hashVariants();
+    console.log('window.hashVariants(), result: ', re);
+    const { data } = JSON.parse(re);
+    for (const [k, v] of Object.entries({ hex: hexOutputElement, base64: base64OutputElement })) {
+      const raw = `${data.map((opt) => `<label for="${k}-${opt}">${opt}</label><input id="${k}-${opt}" readonly name="${opt}"></input>`).join('')}`;
+      v.insertAdjacentHTML('beforeend', raw);
+    }
+  };
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+    await Promise.all([initCharset(charsetElement), initVariant()]);
+    console.log('All initialization tasks completed successfully.');
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const fdata = Object.fromEntries(new FormData(event.target));
+    console.log('fdata', fdata);
+    const { input, charset } = fdata;
+
+    for (const [format, opd] of Object.entries({
+      hex: hexOutputElement.querySelectorAll('input'),
+      base64: base64OutputElement.querySelectorAll('input'),
+    })) {
+      const re = window.digest(input, charset, format);
+      console.log('window.digest(), result: ', re);
+      const { data, err } = JSON.parse(re);
+      if (err) {
+        alert(err);
+        return;
+      }
+      for (const dom of opd) dom.value = data[dom.name];
+    }
+  });
+</script>
+{{ end }}

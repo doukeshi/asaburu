@@ -1,0 +1,304 @@
+<!----
+title: RSA
+remark: RSA Encryption / Decryption / Signatures
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+  <form id="form">
+    <fieldset>
+      <legend>
+        <h2>key</h2>
+      </legend>
+      <section class="inline-group">
+        <select id="keysize" name="keysize" required>
+          <option disabled value="">size</option>
+        </select>
+        <select id="keyfmt" name="keyfmt" required>
+          <option disabled value="">fmt</option>
+        </select>
+        <input id="genKeyBtn" type="button" value="generate" name="keypais" />
+      </section>
+      <section class="group-auto flexed-group" style="margin-block-start: 1rem">
+        <div>
+          <div class="inline-group">
+            <label for="pub-output">public key</label>
+            <div data-btn="pub"></div>
+          </div>
+          <textarea id="pub-output" name="pubkey" class="key-output" rows="5" style="font-size: smaller"></textarea>
+        </div>
+        <div>
+          <div class="inline-group">
+            <label for="priv-output">private key</label>
+            <div data-btn="priv"></div>
+          </div>
+          <textarea id="priv-output" name="privkey" class="key-output" rows="5" style="font-size: smaller"></textarea>
+        </div>
+      </section>
+    </fieldset>
+
+    <section id="inputs"></section>
+
+    <div class="inline-group">
+      <select id="padding" name="padding" required></select>
+      <select id="hash" name="hash" required>
+        <option disabled value="">hash</option>
+      </select>
+    </div>
+    <fieldset>
+      <legend>input / output</legend>
+      <div class="inline-group">
+        <select id="enc" name="encoding" required>
+          <option disabled value="">encoding</option>
+        </select>
+        <select id="charset" name="charset" required>
+          <option disabled value="">charset</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <div class="inline-group grouped" style="gap: 0.5rem">
+      <select id="mode" name="mode" required class="gap">
+        <option disabled value="">mode</option>
+      </select>
+      <span class="inline-group"></span>
+    </div>
+  </form>
+</article>
+
+<section class="output">
+  <label for="output">
+    <h2>output</h2>
+  </label>
+  <textarea id="output" rows="10" readonly></textarea>
+</section>
+{{ end }}
+
+{{ define "styles" }}
+<style>
+  div[data-btn] {
+    flex: 0 1 auto;
+    padding-inline: 1rem;
+    line-height: 1.5;
+  }
+
+  .flexed-group {
+    @media (min-width: 768px) {
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+  }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, initCharset, populateSelect, Encoding } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const outputElement = document.querySelector('#output');
+
+  // key
+  const keySizeElement = formElement.querySelector('#keysize');
+  const keyFmtElement = formElement.querySelector('#keyfmt');
+  const genKeyBtnElement = formElement.querySelector('#genKeyBtn');
+  const pubOutputElement = formElement.querySelector('#pub-output');
+  const privOutputElement = formElement.querySelector('#priv-output');
+
+  const modeElement = formElement.querySelector('#mode');
+  const inputsElement = formElement.querySelector('#inputs');
+  const paddingElement = formElement.querySelector('#padding');
+  const hashElement = formElement.querySelector('#hash');
+  const encElement = formElement.querySelector('#enc');
+  const charsetElement = formElement.querySelector('#charset');
+
+  const defaultEnc = 'base64';
+  let paddings = {};
+
+  const callbacks = {
+    crypto: (btnElement) => {
+      btnElement.innerHTML = `<input type="submit" value="encrypt" data-func="rsaEncrypt" name="action" />
+      <input type="submit" value="decrypt" data-func="rsaDecrypt" name="action" />`;
+      inputsElement.innerHTML = `<label for="input">input</label>
+      <textarea id="input" name="input" rows="10" required></textarea>`;
+    },
+    signature: (btnElement) => {
+      btnElement.innerHTML = `<input type="submit" value="sign" data-func="rsaSign" name="action" />
+      <input type="submit" value="verify" data-func="rsaVerify" name="action" />`;
+      inputsElement.innerHTML = `<fieldset class="group-auto flexed-group"><legend><h2>signature</h3></legend>
+      <div>
+        <label for="input">input</label>
+        <textarea id="input" name="input" rows="10" required></textarea>
+      </div><div>
+        <label for="signature">signature</label>
+        <textarea id="signature" name="signature" rows="10"></textarea>
+      </div></fieldset>`;
+    },
+  };
+
+  const initVariant = async () => {
+    const re = window.rsaVariants();
+    console.log('window.rsaVariants(), result: ', re);
+    const { data } = JSON.parse(re);
+    const key = data.key;
+    populateSelect(keySizeElement, key['sizes'], key.defsize);
+    populateSelect(keyFmtElement, key['fmts'], key.deffmt);
+
+    const hash = data.hash;
+    populateSelect(hashElement, hash.variants, hash['def']);
+    let modeOptionArr = [];
+    for (const [k, v] of Object.entries(data.modes)) {
+      modeOptionArr.push(`<option value="${k}" ${k === 'crypto' ? 'selected' : ''}>${k}</option>`);
+      const raw = v.map(
+        (pad) => `<option value="${pad}" ${hash.modes.includes(pad) ? 'data-hash="true"' : ''}  ${pad === v[0] ? 'selected' : ''}>${pad}</option>`
+      );
+      paddings[k] = `<option disabled value="">padding</option>` + raw;
+    }
+    modeElement.insertAdjacentHTML('beforeend', modeOptionArr.join(''));
+  };
+
+  const initEncoding = async () => {
+    const data = Object.keys(Encoding.variants);
+    populateSelect(encElement, data, defaultEnc);
+  };
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+    await Promise.all([initCharset(charsetElement), initVariant(), initEncoding()]);
+    console.log('All initialization tasks completed successfully.');
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  genKeyBtnElement.addEventListener('click', (event) => {
+    event.preventDefault();
+    console.time('rsaGenerateKey');
+    const re = window.rsaGenerateKey(keySizeElement.value, keyFmtElement.value);
+    console.timeEnd('rsaGenerateKey');
+    console.log('window.rsaGenerateKey(), result: ', re);
+    const { data, err } = JSON.parse(re);
+    if (err) {
+      alert(err);
+      return;
+    }
+
+    const now = Date.now();
+    for (const [key, ele] of Object.entries({ privkey: privOutputElement, pubkey: pubOutputElement })) {
+      ele.value = atob(data.pem[key]);
+      const dataURL = `data:application/octet-stream;base64,${data.der[key]}`;
+      const raw = `
+      <a href="${dataURL}" download="${key}-${now}.der">Der</a>
+      <a href="#" data-clear="${ele.id}">Clear</a>`;
+      ele.previousElementSibling.querySelector('div[data-btn]').innerHTML = raw;
+    }
+
+    genKeyBtnElement.disabled = true;
+  });
+
+  [privOutputElement, pubOutputElement].forEach((ele) => {
+    ele.previousElementSibling.addEventListener('click', (event) => {
+      const ta = event.target.closest('a');
+      if (ta?.dataset.clear !== ele.id) return;
+      event.preventDefault();
+      ele.value = '';
+      ta.parentNode.replaceChildren();
+      genKeyBtnElement.disabled = false;
+    });
+  });
+
+  modeElement.addEventListener('change', (event) => {
+    const target = event.target;
+    const option = target.options[target.selectedIndex];
+    const mode = option.value;
+    const callbackFunc = callbacks[mode];
+    callbackFunc(target.nextElementSibling);
+
+    paddingElement.innerHTML = paddings[mode];
+    paddingElement.dispatchEvent(new Event('change'));
+  });
+
+  paddingElement.addEventListener('change', (event) => {
+    const target = event.target;
+    const option = target.options[target.selectedIndex];
+    console.log(option);
+    hashElement.disabled = !option.dataset.hash;
+  });
+  modeElement.dispatchEvent(new Event('change'));
+
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const func = event.submitter.dataset.func;
+    const fdata = Object.fromEntries(new FormData(event.target));
+    console.log('func', func, 'fdata', fdata);
+    const { keysize, keyfmt, privkey, pubkey, input, signature, padding, hash, encoding, charset } = fdata;
+
+    const rsaObj = {
+      key_fmt: keyfmt,
+      key_size: parseInt(keysize, 10),
+      padding: padding,
+      hash: hash,
+      input: input,
+      charset: charset,
+      privkey: privkey,
+      pubkey: pubkey,
+    };
+    const rsaJSON = JSON.stringify(rsaObj);
+    console.log('rsaJSON', rsaJSON);
+    switch (func) {
+      case 'rsaEncrypt':
+        {
+          const re = window.rsaEncrypt(rsaJSON);
+          console.log('window.rsaEncrypt(), result: ', re);
+          const { data, err } = JSON.parse(re);
+          if (err) {
+            alert(err);
+            return;
+          }
+          if (data[encoding] === undefined) throw new Error('Invalid encoding');
+          outputElement.value = data[encoding];
+        }
+        break;
+      case 'rsaDecrypt': {
+        const re = window.rsaDecrypt(rsaJSON, encoding);
+        console.log('window.rsaDecrypt(), result: ', re);
+        const { data, err } = JSON.parse(re);
+        if (err) {
+          alert(err);
+          return;
+        }
+        outputElement.value = data;
+        break;
+      }
+      case 'rsaSign': {
+        const re = window.rsaSign(rsaJSON);
+        console.log('window.rsaSign(), result: ', re);
+        const { data, err } = JSON.parse(re);
+        if (err) {
+          alert(err);
+          return;
+        }
+        if (data[encoding] === undefined) throw new Error('Invalid encoding');
+        outputElement.value = data[encoding];
+        break;
+      }
+      case 'rsaVerify':
+        {
+          const re = window.rsaVerify(rsaJSON, encoding, signature);
+          console.log('window.rsaVerify(), result: ', re);
+          const { data, err } = JSON.parse(re);
+          if (err) {
+            alert(err);
+            return;
+          }
+          outputElement.value = true;
+        }
+        break;
+      default:
+        throw new Error('Invalid action');
+    }
+  });
+</script>
+{{ end }}

@@ -1,0 +1,58 @@
+<!----
+title:
+data: xx
+---->
+
+{{ define "main" }}
+<div class="grid" role="feed">
+  {{range $k, $v := .WasmLinks}}
+  <article class="box card">
+    <header style="border-block-end: 1px solid dimgrey;">
+      <a href="{{ $k }}/">
+        <h2>{{ $v.Title }}</h2>
+      </a>
+    </header>
+    <p>{{ $v.Remark }}</p>
+    <footer>
+    </footer>
+  </article>
+  {{ end }}
+</div>
+{{ end }}
+
+{{ define "styles" }}
+<style>
+  body>main {
+    @media (max-width: 768px) {
+      max-inline-size: var(--eff-line-length);
+    }
+  }
+
+  article.card {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 2rem;
+
+    >.card {
+      display: flex;
+      flex-direction: column;
+
+      >p {
+        height: 100%;
+        margin-block: 1rem;
+      }
+
+      >section {
+        padding-block: 0.5rem;
+        text-align: end;
+      }
+    }
+  }
+</style>
+{{ end }}

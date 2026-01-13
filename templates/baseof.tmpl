@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>{{ if .Title}}{{ printf " %s - " .Title }}{{ end }} Asaburu </title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/3.0.1/modern-normalize.min.css"
+    integrity="sha512-q6WgHqiHlKyOqslT/lgBgodhd03Wp4BEqKeW6nNtlOY4quzyG3VoQKFrieaCeSnuVseNKRGpGeDU3qPmabCANg==" crossorigin="anonymous"
+    referrerpolicy="no-referrer" />
+  <script src='{{ prefix "wasm_exec.js" }}'></script>
+  <style>
+    :root {
+      --max-main-inline-size: 80rem;
+
+      @media (min-width: 1600px) {
+        --max-main-inline-size: 90rem;
+      }
+
+      @media (min-width: 1760px) {
+        --max-main-inline-size: 100rem;
+      }
+
+      --css-color: darkgrey;
+      --css-gap: 0.5rem;
+    }
+
+    a {
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--css-gap);
+    }
+
+    label {
+      display: block;
+    }
+
+    label,
+    input,
+    select,
+    textarea {
+      padding: 0.2rem;
+      inline-size: 100%;
+    }
+
+    label,
+    select,
+    option,
+    fieldset>legend,
+    fieldset>legend *,
+    input[type='submit'],
+    input[type='button'] {
+      text-transform: capitalize;
+    }
+
+    textarea {
+      resize: vertical;
+
+      @media (min-width: 768px) {
+        min-height: 10rem;
+      }
+    }
+
+    textarea:user-invalid,
+    input:user-invalid,
+    select:user-invalid,
+    textarea.valid,
+    input.valid,
+    select.valid {
+      outline-color: red;
+      outline-style: solid;
+      border-color: red;
+      border-style: solid;
+    }
+
+    @media (max-width: 576px) {
+
+      ul,
+      ol {
+        padding-inline-start: 1rem;
+      }
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+
+      >main {
+        flex: 1 0 auto;
+        margin-block-end: 2rem;
+      }
+
+      >main,
+      >header,
+      >footer {
+        max-inline-size: var(--max-main-inline-size);
+        width: 100%;
+        margin-inline: auto;
+        padding: 1rem;
+      }
+    }
+
+    header.header {
+      display: flex;
+      align-items: center;
+
+      h2 {
+        flex: 1;
+      }
+    }
+
+    nav {
+      display: inline-flex;
+      gap: 1rem;
+    }
+
+    .copyright,
+    .copyright a {
+      font-size: small;
+      color: var(--css-color);
+    }
+
+    article.card {
+      @media (min-width: 768px) {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)
+      }
+    }
+
+    section.output {
+      @media (min-width: 768px) {
+        padding: 1rem;
+      }
+
+      h2 {
+        text-transform: uppercase;
+      }
+    }
+
+    .inline-group {
+      display: inline-flex;
+      width: 100%;
+      gap: var(--css-gap);
+
+      >* {
+        flex: 1;
+      }
+
+      &.grouped {
+        gap: 0;
+
+        >select:first-child:not(.gap) {
+          border-right-width: 0;
+        }
+
+        > :first-child {
+          flex: 0;
+          width: auto;
+        }
+      }
+    }
+
+    .group-auto {
+      display: grid;
+      row-gap: var(--css-gap);
+
+      @media (min-width: 768px) {
+        grid-template-columns: auto 1fr;
+
+        >label {
+          border: 1px solid darkgrey;
+          border-right-width: 0;
+          margin-right: -1px;
+          padding-inline: var(--css-gap);
+          line-height: 2;
+        }
+      }
+    }
+  </style>
+  {{ block "styles" . }}{{ end }}
+</head>
+
+<body>
+  <header class="header">
+    <h2><a href="/" style="color: inherit;">Asaburu</a></h2>
+    <nav>
+      <a href="https://pifu.me/projects/">Projects</a>
+      <a href="https://pifu.me/about/">About</a>
+    </nav>
+  </header>
+  <main>{{ block "main" . }} {{ end }}</main>
+  <footer>
+    <nav>
+      {{range navs }}
+      <a href="{{ .Href }}" {{ if stringsHasPrefix .Href "https://" }} target="_blank" rel="noopener" {{ end }}>{{ .Title }}</a>
+      {{ end }}
+    </nav>
+    <p class="copyright">
+      ©{{ year }}
+      <a href="https://github.com/doukeshi/asaburu" target="_blank" rel="noopener">Asaburu</a> ·
+      <a href="https://github.com/doukeshi/asaburu/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
+    </p>
+  </footer>
+  {{ block "scripts" . }} {{ end }}
+</body>
+
+</html>

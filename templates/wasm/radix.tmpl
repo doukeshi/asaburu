@@ -1,0 +1,95 @@
+<!----
+title: Radix Conversion
+remark: binary octal decimal hex base32 base36
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+  <form id="form">
+    <div id="output" class="group-auto"></div>
+  </form>
+</article>
+{{ end }}
+
+{{ define "styles" }}
+<style>
+  input:invalid,
+  select:invalid,
+  textarea:invalid {
+    outline-color: red;
+    outline-style: solid;
+    border-color: red;
+    border-style: solid;
+  }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, populateSelect } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const outputElement = document.querySelector('#output');
+
+  const initVariant = async () => {
+    const re = window.radixVariants();
+    console.log('window.radixVariants(), result: ', re);
+    const { data } = JSON.parse(re);
+    const inputs = data
+      .map((obj) => {
+        return `
+        <label for="${obj.name}">${obj.name}</label>
+        <input type="text" id="${obj.name}" name="${obj.name}" data-base="${obj.base}" pattern="${obj.regex}"/>
+        </div>`;
+      })
+      .join('');
+    outputElement.insertAdjacentHTML('beforeend', inputs);
+  };
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+    await Promise.all([initVariant()]);
+    console.log('All initialization tasks completed successfully.');
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  const outputDoms = outputElement.querySelectorAll('input');
+  formElement.addEventListener('input', (event) => {
+    const target = event.target;
+    const value = target.value;
+    console.log('value', value);
+    target.setCustomValidity('');
+
+    if (!value) {
+      for (const inputElement of outputDoms) {
+        inputElement.value = '';
+      }
+      target.reportValidity();
+      console.log('NULL Input');
+      return;
+    }
+    if (!target.checkValidity()) {
+      target.setCustomValidity(`invalid ${target.name} symbol`);
+      target.reportValidity();
+      console.log('Invalid Input');
+      return;
+    }
+
+    const re = window.radixConv(target.dataset.base, value);
+    console.log('window.radixConv(), result: ', re);
+    const { data, err } = JSON.parse(re);
+    if (err) {
+      alert(err);
+      return;
+    }
+
+    for (const dom of outputDoms) {
+      dom.value = data[dom.name];
+    }
+  });
+</script>
+{{ end }}

@@ -1,0 +1,103 @@
+<!----
+title: Base
+remark: Base16 Base32 Base32Hex Base64 Base64URL Base85
+---->
+
+{{ define "main" }}
+<article class="box card">
+  <h1>{{ .Title }}</h1>
+  <form id="form">
+    <div>
+      <label for="alphabet">alphabet</label>
+      <input id="alphabet" type="text" readonly />
+    </div>
+    <textarea id="input" name="input" rows="10" required></textarea>
+    <div class="inline-group">
+      <select id="variant" name="variant" required>
+        <option disabled value="">variant</option>
+      </select>
+      <select id="charset" name="charset" required>
+        <option disabled value="">charset</option>
+      </select>
+    </div>
+    <div class="inline-group">
+      <input type="submit" value="encode" data-func="baseEncode" name="action" />
+      <input type="submit" value="decode" data-func="baseDecode" name="action" />
+    </div>
+  </form>
+</article>
+<section class="output">
+  <label for="output">
+    <h2>output</h2>
+  </label>
+  <textarea id="output" rows="10" readonly></textarea>
+</section>
+{{ end }}
+
+{{ define "scripts" }}
+<script type="module">
+  import { loadWasm, initCharset, populateSelect } from '/asaburu.js';
+  const wasmPromise = loadWasm('/asaburu.wasm');
+
+  const formElement = document.querySelector('#form');
+  const charsetElement = formElement.querySelector('#charset');
+  const variantElement = formElement.querySelector('#variant');
+  const alphabetElement = formElement.querySelector('#alphabet');
+  const outputElement = document.querySelector('#output');
+  const defaultVariant = 'base64';
+
+  const initVariant = async () => {
+    const re = window.baseVariants();
+    console.log('window.baseVariants(), result: ', re);
+    const { data } = JSON.parse(re);
+    populateSelect(
+      variantElement,
+      data.map((obj) => obj.name),
+      defaultVariant
+    );
+
+    const obj = data.reduce((acc, obj) => {
+      acc[obj.name] = obj.alphabet;
+      return acc;
+    }, {});
+
+    variantElement.addEventListener('change', () => {
+      alphabetElement.value = obj[variantElement.value];
+    });
+  };
+
+  try {
+    const wasm = await wasmPromise;
+    console.log('WASM module loaded, exports: ', wasm.exports);
+    await Promise.all([initCharset(charsetElement), initVariant()]);
+    console.log('All initialization tasks completed successfully.');
+  } catch (err) {
+    console.error('Error occurred:', err);
+  }
+
+  variantElement.dispatchEvent(new Event('change'));
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const func = event.submitter.dataset.func;
+    const fdata = Object.fromEntries(new FormData(event.target));
+    console.log('func', func, 'fdata', fdata);
+    const { variant, input, charset } = fdata;
+
+    let re;
+    if (typeof window[func] === 'function') {
+      re = window[func](variant, input, charset);
+      console.log('window.' + func + ', result: ', re);
+    } else {
+      console.error('Invalid func:', func);
+      throw new Error('Invalid func');
+    }
+
+    const { data, err } = JSON.parse(re);
+    if (err) {
+      alert(err);
+      return;
+    }
+    outputElement.value = data;
+  });
+</script>
+{{ end }}
